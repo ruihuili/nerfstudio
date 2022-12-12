@@ -193,6 +193,7 @@ class TCNNNerfactoField(Field):
                 "n_hidden_layers": num_layers_color - 1,
             },
         )
+        print("using torch tcnn")
 
     def get_density(self, ray_samples: RaySamples):
         """Computes and returns the densities."""
@@ -286,10 +287,10 @@ class TorchNerfactoField(Field):
         self,
         aabb,
         num_images: int,
-        position_encoding: Encoding = HashEncoding(),
+        position_encoding: Encoding = HashEncoding(implementation='torch'),
         direction_encoding: Encoding = SHEncoding(),
-        base_mlp_num_layers: int = 3,
-        base_mlp_layer_width: int = 64,
+        base_mlp_num_layers: int = 4,
+        base_mlp_layer_width: int = 256,
         head_mlp_num_layers: int = 2,
         head_mlp_layer_width: int = 32,
         appearance_embedding_dim: int = 40,
@@ -327,6 +328,7 @@ class TorchNerfactoField(Field):
         for field_head in self.field_heads:
             field_head.set_in_dim(self.mlp_head.get_out_dim())  # type: ignore
 
+        print("using torch normal")
     def get_density(self, ray_samples: RaySamples):
         if self.spatial_distortion is not None:
             positions = ray_samples.frustums.get_positions()
@@ -361,7 +363,7 @@ class TorchNerfactoField(Field):
                     [
                         encoded_dir,
                         density_embedding,  # type:ignore
-                        embedded_appearance.view(-1, self.appearance_embedding_dim),
+                        embedded_appearance,
                     ],
                     dim=-1,  # type:ignore
                 )

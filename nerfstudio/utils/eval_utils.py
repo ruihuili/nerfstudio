@@ -60,14 +60,16 @@ def eval_load_checkpoint(config: cfg.TrainerConfig, pipeline: Pipeline) -> Path:
     loaded_state = torch.load(load_path, map_location="cpu")
     pipeline.load_pipeline(loaded_state["pipeline"])
     CONSOLE.print(f":white_check_mark: Done loading checkpoint from {load_path}")
-    return load_path
+    return load_path, loaded_state
 
 
 def eval_setup(
     config_path: Path,
     eval_num_rays_per_chunk: Optional[int] = None,
     test_mode: Literal["test", "val", "inference"] = "test",
-) -> Tuple[cfg.Config, Pipeline, Path]:
+    prune_ratio: float = 0.6,
+    prune_scheme: Literal["Uniform", "Fisher", "InverseFI", "L2_norm"] = "Uniform",
+) -> Tuple[cfg.Config, Pipeline, Path, float, str]:
     """Shared setup for loading a saved pipeline for evaluation.
 
     Args:
@@ -101,6 +103,55 @@ def eval_setup(
     pipeline.eval()
 
     # load checkpointed information
-    checkpoint_path = eval_load_checkpoint(config.trainer, pipeline)
+    print("before loading checkpt")
+    checkpoint_path, loaded_state = eval_load_checkpoint(config.trainer, pipeline)
+    
+    def get_size(model):
+        param_size = 0
+        for param in model.parameters():
+            param_size += param.nelement() * param.element_size()
+        buffer_size = 0
+        for buffer in model.buffers():
+            buffer_size += buffer.nelement() * buffer.element_size()
+
+        size_all_mb = (param_size + buffer_size) / 1024**2
+        return size_all_mb
+
+    # import torchvision.models as models
+
+    # from ptflops import get_model_complexity_info
+
+    # with torch.cuda.device(0):
+    #     # net = models.densenet161()
+    #     macs, params = get_model_complexity_info(pipeline.model, (2, 3), as_strings=True,
+    #                                                 print_per_layer_stat=True, verbose=True)
+    #     print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    #     print('{:<30}  {:<8}'.format('Number of parameters: ', params))
+
+        # for name, param, in pipeline.model.field.named_parameters():
+        #     print(name, tuple(param.shape), type(param))
+        #     macs, params = get_model_complexity_info(param, tuple(param.shape), as_strings=True,
+        #                                             print_per_layer_stat=True, verbose=True)
+        #     print('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+        #     print('{:<30}  {:<8}'.format('Number of parameters: ', params))
+
+
+    # prune if its nerfacto
+    for name, param, in pipeline.model.field.named_parameters():
+        print(name, param.shape)
+    # print(get_size(pipeline.model), get_size(pipeline.model.field), get_size(pipeline.model.proposal_networks))
+
+    c_before = sum([torch.count_nonzero(l.weight) for l in pipeline.model.field.mlp_base.layers])
+    
+    pipeline.model.field.mlp_base.prune_mlp(loaded_state["grads"], "field.mlp_base", ratio=prune_ratio, scheme=prune_scheme)
+    pipeline.model.field.mlp_head.prune_mlp(loaded_state["grads"], "field.mlp_head", ratio=prune_ratio, scheme=prune_scheme)
+    
+    c_after = sum([torch.count_nonzero(l.weight) for l in pipeline.model.field.mlp_base.layers])
+
+    # from torchprofile import profile_macs
+    # inputs = torch.randn(32768)
+    # macs = profile_macs(pipeline.model, inputs)
+    # print("after", get_size(pipeline.model),  get_size(pipeline.model.field), get_size(pipeline.model.proposal_networks))
+    print("count non-zero before ", c_before, " after ", c_after)
 
     return config, pipeline, checkpoint_path

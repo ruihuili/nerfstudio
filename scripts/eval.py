@@ -22,12 +22,16 @@ class ComputePSNR:
 
     # Path to config YAML file.
     load_config: Path
+    # Prune scheme
+    prune_scheme: str = "Random"
+    # Prune ratio
+    prune_ratio: float = 0.6
     # Name of the output file.
     output_path: Path = Path("output.json")
 
     def main(self) -> None:
         """Main function."""
-        config, pipeline, checkpoint_path = eval_setup(self.load_config)
+        config, pipeline, checkpoint_path = eval_setup(self.load_config, prune_ratio=self.prune_ratio, prune_scheme=self.prune_scheme)
         assert self.output_path.suffix == ".json"
         metrics_dict = pipeline.get_average_eval_image_metrics()
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -36,7 +40,7 @@ class ComputePSNR:
             "experiment_name": config.experiment_name,
             "method_name": config.method_name,
             "checkpoint": str(checkpoint_path),
-            "results": metrics_dict,
+            "results": metrics_dict, 
         }
         # Save output to output file
         self.output_path.write_text(json.dumps(benchmark_info, indent=2), "utf8")

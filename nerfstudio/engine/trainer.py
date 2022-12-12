@@ -281,6 +281,10 @@ class Trainer:
         # possibly make the checkpoint directory
         if not self.checkpoint_dir.exists():
             self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+
+        module = self.pipeline.module if hasattr(self.pipeline, "module") else self.pipeline
+        grad_dict = {name:param.grad for name, param in module.named_parameters()}
+
         # save the checkpoint
         ckpt_path = self.checkpoint_dir / f"step-{step:09d}.ckpt"
         torch.save(
@@ -291,6 +295,7 @@ class Trainer:
                 else self.pipeline.state_dict(),
                 "optimizers": {k: v.state_dict() for (k, v) in self.optimizers.optimizers.items()},
                 "scalers": self.grad_scaler.state_dict(),
+                "grads": grad_dict
             },
             ckpt_path,
         )

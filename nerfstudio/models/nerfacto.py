@@ -38,7 +38,7 @@ from nerfstudio.engine.callbacks import (
 from nerfstudio.field_components.field_heads import FieldHeadNames
 from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.density_fields import HashMLPDensityField
-from nerfstudio.fields.nerfacto_field import TCNNNerfactoField
+from nerfstudio.fields.nerfacto_field import TorchNerfactoField
 from nerfstudio.model_components.losses import MSELoss, distortion_loss, interlevel_loss
 from nerfstudio.model_components.ray_samplers import ProposalNetworkSampler
 from nerfstudio.model_components.renderers import (
@@ -113,11 +113,11 @@ class NerfactoModel(Model):
         scene_contraction = SceneContraction(order=float("inf"))
 
         # Fields
-        self.field = TCNNNerfactoField(
+        self.field = TorchNerfactoField(
             self.scene_box.aabb,
             spatial_distortion=scene_contraction,
             num_images=self.num_train_data,
-            use_average_appearance_embedding=self.config.use_average_appearance_embedding,
+            # use_average_appearance_embedding=self.config.use_average_appearance_embedding,
         )
 
         self.density_fns = []
